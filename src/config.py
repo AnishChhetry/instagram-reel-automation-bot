@@ -20,8 +20,6 @@ class Config:
         self.app_id = os.getenv("APP_ID") 
         self.app_secret = os.getenv("APP_SECRET")
         self.instagram_account_id = os.getenv("INSTAGRAM_ACCOUNT_ID")
-        
-        # --- ADDED: Ngrok Authtoken ---
         self.ngrok_authtoken = os.getenv("NGROK_AUTHTOKEN")
 
         # Application settings
@@ -61,13 +59,26 @@ class Config:
     def save_config(self, config_data: dict):
         """Save configuration to .env file"""
         try:
-            # Ensure the config directory exists
             os.makedirs(os.path.dirname(self.env_file), exist_ok=True)
             with open(self.env_file, "w") as f:
                 for key, value in config_data.items():
                     f.write(f"{key}={value}\n")
-            # The app.py file will handle reloading the config
             return True
         except Exception as e:
             print(f"Error saving configuration: {str(e)}")
             return False
+
+    # --- ADDED BACK: Missing helper methods ---
+
+    def validate_video_file(self, filename: str) -> bool:
+        """Validate if file is an allowed video format"""
+        file_ext = Path(filename).suffix.lower().lstrip('.')
+        return file_ext in self.allowed_video_formats
+
+    def get_video_path(self, filename: str) -> str:
+        """Get full path for video storage"""
+        return os.path.join(self.video_storage_path, filename)
+
+    def get_temp_path(self, filename: str) -> str:
+        """Get full path for temporary storage"""
+        return os.path.join(self.temp_storage_path, filename)
