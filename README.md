@@ -42,8 +42,8 @@ Follow these steps to get the application running on your local machine.
 ### **2. Clone the Repository**
 
 ```bash
-git clone <your-repository-url>
-cd <repository-name>
+git clone https://github.com/AnishChhetry/instagram-reel-automation-bot.git
+cd instagram-reel-automation-bot
 ```
 
 ### **3. Set Up a Virtual Environment**
