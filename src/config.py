@@ -1,3 +1,5 @@
+# In config.py
+
 import os
 from typing import Optional
 from pathlib import Path
@@ -21,6 +23,9 @@ class Config:
         self.app_secret = os.getenv("APP_SECRET")
         self.instagram_account_id = os.getenv("INSTAGRAM_ACCOUNT_ID")
         self.ngrok_authtoken = os.getenv("NGROK_AUTHTOKEN")
+
+        # --- ADD THIS LINE ---
+        self.app_pin = os.getenv("APP_PIN") 
 
         # Application settings
         self.max_file_size_mb = int(os.getenv("MAX_FILE_SIZE_MB", "200"))
@@ -67,8 +72,6 @@ class Config:
         except Exception as e:
             print(f"Error saving configuration: {str(e)}")
             return False
-
-    # --- ADDED BACK: Missing helper methods ---
 
     def validate_video_file(self, filename: str) -> bool:
         """Validate if file is an allowed video format"""

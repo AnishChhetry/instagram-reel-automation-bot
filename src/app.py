@@ -1,3 +1,5 @@
+# In app.py
+
 import streamlit as st
 import os
 import json
@@ -41,6 +43,10 @@ if 'api' not in st.session_state:
     st.session_state.api = None
 if 'scheduler' not in st.session_state:
     st.session_state.scheduler = None
+# --- ADD THIS LINE ---
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+
 
 def initialize_components():
     """Initializes components if the app is configured."""
@@ -151,11 +157,16 @@ def render_main_dashboard():
     with tab_scheduled: render_scheduled_posts_tab()
     with tab_details: render_account_details_tab()
 
+# vvv REPLACE the existing render_settings_tab function with this one vvv
 def render_settings_tab():
     st.header("⚙️ Settings & Configuration")
     with st.form("settings_form"):
-        st.subheader("🔧 Instagram API Credentials")
         config = st.session_state.config
+        
+        st.subheader("🔑 Application Access")
+        app_pin = st.text_input("Application Access PIN (leave blank to disable)", value=config.app_pin or "", type="password", help="Set a PIN to lock access to this application.")
+        
+        st.subheader("🔧 Instagram API Credentials")
         access_token = st.text_input("Access Token", value=config.access_token or "", type="password")
         app_id = st.text_input("App ID", value=config.app_id or "")
         app_secret = st.text_input("App Secret", value=config.app_secret or "", type="password")
@@ -165,15 +176,23 @@ def render_settings_tab():
         ngrok_token = st.text_input("Ngrok Authtoken", value=config.ngrok_authtoken or "", type="password")
         
         if st.form_submit_button("💾 Save Configuration", type="primary", use_container_width=True):
-            config_data = {"ACCESS_TOKEN": access_token, "APP_ID": app_id, "APP_SECRET": app_secret, "INSTAGRAM_ACCOUNT_ID": instagram_id, "NGROK_AUTHTOKEN": ngrok_token}
+            config_data = {
+                "ACCESS_TOKEN": access_token, 
+                "APP_ID": app_id, 
+                "APP_SECRET": app_secret, 
+                "INSTAGRAM_ACCOUNT_ID": instagram_id, 
+                "NGROK_AUTHTOKEN": ngrok_token,
+                "APP_PIN": app_pin  # Add PIN to the config data
+            }
             if config.save_config(config_data):
                 st.success("✅ Configuration saved! Reloading application...")
-                st.session_state.config = Config()
-                st.session_state.api = None
-                st.session_state.scheduler = None
+                # Clear session state to force re-initialization
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
                 st.rerun()
             else:
                 st.error("❌ Failed to save configuration file.")
+# ^^^ End of the new render_settings_tab function ^^^
 
 def render_account_details_tab():
     st.header("👤 Instagram Account Details")
@@ -274,8 +293,6 @@ def render_recurring_post_tab():
                         except Exception as e:
                             st.error(f"An error occurred: {e}")
 
-# In app.py, replace the render_performance_tab function
-
 def render_performance_tab(media_info):
     st.header("🚀 Video Performance Insights")
     st.write("Select one of your recent videos to view its detailed performance metrics.")
@@ -319,7 +336,6 @@ def render_performance_tab(media_info):
                 st.metric("💾 Saves", f"{data.get('saved', 0):,}")
                 st.metric("👀 Reach", f"{data.get('reach', 0):,}")
             else:
-                # --- ENHANCED ERROR REPORTING ---
                 st.error(f"Could not load insights. Reason: {insights.get('error')}")
     
     st.markdown("---")
@@ -387,9 +403,31 @@ def render_edit_form():
             if st.form_submit_button("❌ Cancel", use_container_width=True):
                 del st.session_state.editing_post_id; st.rerun()
 
+# +++ ADD this new function +++
+def render_login_page():
+    st.title("🔐 Login")
+    st.markdown("Please enter the PIN to access the application.")
+    
+    pin_input = st.text_input("PIN", type="password", key="pin_input")
+    
+    if st.button("Login", use_container_width=True):
+        if pin_input == st.session_state.config.app_pin:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("The PIN you entered is incorrect.")
+
+# vvv REPLACE the existing main function with this one vvv
 def main():
-    render_main_dashboard()
-    render_sidebar()
+    # If a pin is configured, check for authentication
+    if st.session_state.config.app_pin and not st.session_state.get("authenticated"):
+        render_login_page()
+    else:
+        # If no pin is set or if authenticated, run the main app
+        render_main_dashboard()
+        render_sidebar()
+# ^^^ End of the new main function ^^^
+
 
 if __name__ == "__main__":
     main()
