@@ -1,0 +1,64 @@
+MIT License
+
+Copyright (c) 2025 Instagram Reel Pro Automation Bot
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## Instagram Graph API Terms and Compliance
+
+This software integrates with Instagram's Graph API and users must comply with:
+
+### Meta Platform Terms
+- Instagram's Terms of Service and Community Guidelines
+- Meta's Developer Terms and Policies
+- Instagram API Platform Policy
+- Content Publishing Guidelines
+
+### API Usage Compliance
+- Respect all rate limits (25 posts per day maximum)
+- Use only for legitimate business purposes
+- Do not spam or abuse the platform
+- Ensure all content complies with Instagram's policies
+
+### User Responsibilities
+- Obtain proper permissions for all content
+- Respect intellectual property rights
+- Follow applicable laws and regulations
+- Maintain account security and credential confidentiality
+
+### Disclaimer
+The authors and contributors of this software are not responsible for:
+- Any violations of Instagram's terms of service
+- Account suspensions or penalties
+- Loss of data or content
+- Misuse of the automation features
+- Any consequences of API usage
+
+Users are solely responsible for ensuring compliance with all applicable terms,
+policies, and regulations when using this software.
+
+### Support and Updates
+This software is provided as-is. While we strive to maintain compatibility
+with Instagram's API, changes to their platform may affect functionality.
+Users should regularly update to the latest version for best compatibility.
+
+For support and updates, visit:
+https://github.com/yourusername/instagram-reel-pro-automation-bot
