@@ -1,8 +1,6 @@
 # In app.py
 
 import streamlit as st
-import os
-import json
 import uuid
 import pandas as pd
 from datetime import datetime, timedelta, time
@@ -302,23 +300,37 @@ def render_performance_tab(media_info):
         return
 
     media_list = media_info.get("data", {}).get("data", [])
+    # Filter for only video posts
     video_options = [m for m in media_list if m.get("media_type") in ["VIDEO", "REELS"]]
 
     if not video_options:
         st.warning("You don't have any recent videos/reels to analyze.")
         return
 
-    option_dict = {
-        f"{m.get('caption', 'No caption')[:50]}... ({datetime.fromisoformat(m['timestamp']).strftime('%d-%b-%Y')})": m
-        for m in video_options
-    }
-    
-    selected_option_key = st.selectbox("Choose a video to analyze", options=option_dict.keys())
+    # --- START: MODIFIED LOGIC ---
 
-    if selected_option_key:
-        selected_media = option_dict[selected_option_key]
+    def format_video_option(media_item: dict) -> str:
+        """Creates a unique, user-friendly label for each video in the dropdown."""
+        caption = media_item.get('caption', 'No caption')
+        # Format the timestamp to include the time, helping differentiate posts
+        timestamp = datetime.fromisoformat(media_item['timestamp']).strftime('%d-%b-%Y %H:%M')
+        # Use the unique media ID to ensure every entry is distinct
+        media_id = media_item['id']
+        return f"{caption[:50]}... ({timestamp}) - ID: {media_id}"
+
+    # Pass the list of video objects directly to the selectbox
+    # and use format_func to control the display label.
+    selected_media = st.selectbox(
+        "Choose a video to analyze",
+        options=video_options,
+        format_func=format_video_option
+    )
+
+    if selected_media:
+        # 'selected_media' is now the complete dictionary for the chosen video
         media_id = selected_media['id']
         media_url = selected_media.get('media_url')
+        # --- END: MODIFIED LOGIC ---
 
         col1, col2 = st.columns([1, 2])
         with col1:
