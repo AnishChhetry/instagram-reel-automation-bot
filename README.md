@@ -1,69 +1,69 @@
-# 🎬 Instagram Reel Pro Automation Bot
+# 🎬 ReelPilot AI: Instagram Automation & Analysis
 
-A comprehensive tool built with Streamlit and Python to automate the scheduling and posting of Instagram Reels. This application provides a user-friendly interface to manage single-use posts and set up recurring daily posts.
+A comprehensive tool built with Streamlit and Python to automate the scheduling of Instagram Reels and provide powerful, AI-driven account analysis.
 
 ---
 
 ## ✨ Key Features
 
--   **Dashboard Analytics**: View key metrics like total posts, follower count, engagement rate, and reach directly from the dashboard.
--   **Single Post Scheduling**: Upload a video, write a caption, and schedule it to be posted at a specific date and time in your local timezone (IST).
--   **Recurring Daily Posts**: Set up a schedule to post one video automatically at three different times every day.
--   **Post Management**: View, edit the schedule of, and delete upcoming posts.
--   **Secure Configuration**: All API keys and sensitive credentials are managed securely through an environment file.
--   **Robust Scheduling**: Uses `APScheduler` with a persistent database to manage and track scheduled jobs, even after an application restart.
+-   **Multi-Functional Hub**: A central landing page to navigate between post management and account analysis.
+-   **Secure Access**: Optional PIN protection to secure the post management dashboard.
+-   **🤖 AI-Powered Account Analysis**:
+    -   Leverages Google's Gemini AI to generate in-depth, real-time analysis for any public Instagram Business or Creator account.
+    -   Provides actionable insights on engagement, content strategy, and posting cadence.
+-   **Advanced Post Scheduling**:
+    -   Upload a video, write a caption, and schedule it for a specific date and time.
+    -   Set up recurring daily posts with multiple time slots.
+-   **Comprehensive Dashboard**:
+    -   View key metrics like follower count, engagement rate, and reach.
+    -   Analyze the performance of individual videos.
+-   **Full Post Management**: View, edit the schedule of, and delete upcoming posts.
+-   **Secure & Robust**:
+    -   Manages all credentials securely through an environment file.
+    -   Uses `APScheduler` with a persistent database to ensure scheduled jobs are not lost on application restart.
 
 ---
 
 ## 📂 Project Structure
 
-The project is organized into several modules, each with a specific responsibility:
-
--   `src/app.py`: The main Streamlit application file that renders the user interface and handles user interactions.
--   `src/instagram_api.py`: A class that manages all interactions with the Instagram Graph API, including posting reels and fetching analytics.
--   `src/scheduler.py`: The core scheduling engine powered by `APScheduler`. It manages both single-use and recurring jobs.
--   `src/video_processor.py`: A utility class for handling video file uploads, validation, and storage.
+-   `src/app.py`: The main Streamlit application file that renders the UI and handles user interactions.
+-   `src/instagram_api.py`: A class that manages all interactions with the Instagram Graph API and Google's Generative AI.
+-   `src/scheduler.py`: The core scheduling engine powered by `APScheduler`.
+-   `src/video_processor.py`: A utility for handling video file uploads, validation, and storage.
 -   `src/config.py`: Manages loading and saving of application settings and API credentials from the `.env` file.
--   `data/`: Directory for storing persistent data like the scheduler database, logs, and uploaded videos.
--   `config/.env`: The environment file where you store your secret keys and API credentials.
+-   `data/`: Directory for storing persistent data (scheduler DB, logs, videos).
+-   `config/.env`: The environment file for your secret keys and credentials.
 
 ---
 
 ## 🚀 Setup and Installation
 
-Follow these steps to get the application running on your local machine.
-
 ### **1. Prerequisites**
 
 -   Python 3.10 or higher
--   A [Meta for Developers](https://developers.facebook.com/) account and an app with the necessary permissions (`instagram_content_publish`).
--   An [ngrok](https://ngrok.com/) account and authtoken for exposing your local server to the internet.
+-   A [Meta for Developers](https://developers.facebook.com/) account and an app with `instagram_content_publish` permissions.
+-   An [ngrok](https://ngrok.com/) account and authtoken.
+-   A [Google AI Studio](https://aistudio.google.com/) API key for the analysis feature.
 
 ### **2. Clone the Repository**
 
 ```bash
-git clone https://github.com/AnishChhetry/instagram-reel-automation-bot.git
+git clone [https://github.com/AnishChhetry/instagram-reel-automation-bot.git](https://github.com/AnishChhetry/instagram-reel-automation-bot.git)
 cd instagram-reel-automation-bot
 ```
 
 ### **3. Set Up a Virtual Environment**
 
-It's highly recommended to use a virtual environment to manage project dependencies.
-
 ```bash
-# Create the virtual environment
+# Create and activate the virtual environment
 python -m venv env
-
-# Activate it
-# On macOS/Linux:
-source env/bin/activate
-# On Windows:
-.\env\Scripts\activate
+source env/bin/activate  # On macOS/Linux
+# .\env\Scripts\activate  # On Windows
 ```
 
 ### **4. Install Dependencies**
 
-Create a `requirements.txt` file in the root directory with the following content:
+Create a `requirements.txt` file with the following content:
 
 ```text
 streamlit
@@ -76,9 +76,10 @@ SQLAlchemy
 requests
 pyngrok
 pytz
+google-generativeai
 ```
 
-Then, run the installation command:
+Then, install the packages:
 
 ```bash
 pip install -r requirements.txt
@@ -86,9 +87,8 @@ pip install -r requirements.txt
 
 ### **5. Configure Your Credentials**
 
--   Navigate to the `config/` directory.
--   Create a file named `.env`.
--   Open the `.env` file and fill in your credentials.
+-   Navigate to the `config/` directory and create a file named `.env`.
+-   Fill in your credentials as shown below.
 
 ```ini
 # Meta/Instagram API Credentials
@@ -99,34 +99,41 @@ INSTAGRAM_ACCOUNT_ID="YOUR_INSTAGRAM_ACCOUNT_ID"
 
 # Ngrok Authtoken
 NGROK_AUTHTOKEN="YOUR_NGROK_AUTHTOKEN"
+
+# Google AI API Key (for analysis feature)
+GOOGLE_API_KEY="YOUR_GOOGLE_AI_API_KEY"
+
+# Application Security (Optional)
+# Set a PIN to lock the post management dashboard
+APP_PIN="YOUR_SECRET_PIN"
 ```
 
 ### **6. Run the Application**
 
-Navigate back to the `src/` directory and launch the Streamlit app.
+Navigate to the `src/` directory and launch the Streamlit app:
 
 ```bash
 cd src
 streamlit run app.py
 ```
 
-Your application should now be running and accessible in your web browser!
-
 ---
 
 ## ⚙️ Usage
 
-Once the application is running, you can use the different tabs to manage your content.
-
--   **Settings**: The first time you run the app, go to this tab to enter and save your API credentials.
--   **Upload & Schedule**: For posting a video once. You can choose to "Post Now" or "Schedule for Later" at a specific date and time (in IST).
--   **Recurring Post**: To set up a daily schedule. Upload a video, write a caption, and choose three times of the day for it to be posted automatically.
--   **Scheduled Posts**: View all your upcoming single-use posts. You can edit their scheduled time or delete them from here.
--   **Analytics Dashboard**: Get a quick overview of your account's performance.
+1.  **Configuration**: On the landing page, expand the "Application Configuration & Settings" section. Enter all your API keys and optionally set an access PIN. Click "Save Configuration".
+2.  **Choose an Action**:
+    -   Click **"Analyze an Account"** to access the AI analysis tool. Enter any public Instagram Business/Creator username to get a detailed report.
+    -   Click **"Manage My Posts"** to go to the scheduling dashboard. If you set a PIN, you will be prompted to enter it.
+3.  **Inside the Dashboard**:
+    -   **Upload & Schedule**: For posting a single video.
+    -   **Recurring Post**: To set up a daily posting schedule.
+    -   **Performance**: Analyze your recent videos' engagement metrics.
+    -   **Scheduled Posts**: View, edit, or delete your upcoming posts.
 
 ---
 
 ## ⚠️ Important Notes
 
--   **Local Server Requirement**: For the scheduler to work, your computer must be on and the Streamlit application must be running. If you close the application, the scheduler will stop.
--   **Instagram Content Policy**: Be mindful of Instagram's policies. Posting the exact same content repeatedly may be flagged by their algorithm. Consider varying captions for recurring posts.
+-   **Local Server Requirement**: For the scheduler to post content, your computer must be on and the Streamlit application must be running.
+-   **Content Policy**: Be mindful of Instagram's policies. Repeatedly posting identical content may be flagged. Consider using the caption editor to vary your text.
