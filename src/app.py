@@ -74,7 +74,7 @@ def initialize_components():
     Initializes core components like the ReelScheduler if the app is configured.
 
     This function checks if the necessary API credentials are present in the
-    configuration. If so, it instantiates the scheduler, making it available
+    configuration. If so, it instantiates the scheduler, making it available.
 
     Returns:
         bool: True if the application is configured, False otherwise.
@@ -152,7 +152,7 @@ def render_main_dashboard():
     Renders the main dashboard UI for post management and analytics.
 
     This function sets up the header, key performance indicator (KPI) metrics,
-    and the tabbed interface for different management tasks.
+    and the tabbed interface for different management tasks, including settings.
     """
     st.markdown("""
     <div class="main-header">
@@ -160,14 +160,12 @@ def render_main_dashboard():
         <p>Manage, schedule, and analyze your Instagram presence</p>
     </div>
     """, unsafe_allow_html=True)
-
-    tabs = ["📤 Upload & Schedule", "🔁 Recurring Post", "🚀 Performance", "📅 Scheduled Posts", "👤 Account Details"]
-    tab_upload, tab_recurring, tab_performance, tab_scheduled, tab_details = st.tabs(tabs)
+    
+    # --- MODIFIED: Added '⚙️ Settings' tab ---
+    tabs = ["📤 Upload & Schedule", "🔁 Recurring Post", "🚀 Performance", "📅 Scheduled Posts", "👤 Account Details", "⚙️ Settings"]
+    tab_upload, tab_recurring, tab_performance, tab_scheduled, tab_details, tab_settings = st.tabs(tabs)
 
     is_configured = initialize_components()
-
-    if not is_configured:
-        st.warning("⚠️ API not configured. Please return to the home page to configure your settings.")
 
     # Fetch data for dashboard metrics
     with st.spinner("Loading dashboard data..."):
@@ -198,15 +196,35 @@ def render_main_dashboard():
     col4.metric("👀 Reach (28 days)", reach)
     st.markdown("---")
 
-    # Render tabs only if the app is configured
-    if is_configured:
-        with tab_upload: render_upload_tab()
-        with tab_recurring: render_recurring_post_tab()
-        with tab_performance: render_performance_tab(media_info)
-        with tab_scheduled: render_scheduled_posts_tab()
-        with tab_details: render_account_details_tab()
-    else:
-        st.info("Please configure your API credentials on the home page to enable all features.")
+    # --- MODIFIED: New tab rendering logic ---
+    def show_config_warning():
+        """Displays a standard warning message if the app is not configured."""
+        st.warning("⚠️ Application not configured. Please go to the '⚙️ Settings' tab to enter your API credentials.")
+
+    with tab_upload:
+        if is_configured: render_upload_tab()
+        else: show_config_warning()
+        
+    with tab_recurring:
+        if is_configured: render_recurring_post_tab()
+        else: show_config_warning()
+
+    with tab_performance:
+        if is_configured: render_performance_tab(media_info)
+        else: show_config_warning()
+
+    with tab_scheduled:
+        if is_configured: render_scheduled_posts_tab()
+        else: show_config_warning()
+
+    with tab_details:
+        if is_configured: render_account_details_tab()
+        else: show_config_warning()
+        
+    with tab_settings:
+        st.header("⚙️ Application Configuration")
+        st.info("Enter your API credentials and application settings here. Changes are applied immediately after saving.")
+        render_settings_form(form_key="dashboard_settings_form")
 
 def render_settings_form(form_key="settings_form"):
     """
@@ -415,9 +433,18 @@ def render_performance_tab(media_info):
     def format_video_option(media_item: dict) -> str:
         """Formats a media item for display in a selectbox."""
         caption = media_item.get('caption', 'No caption')
+        
+        # --- FIX STARTS HERE ---
+        # Get the timestamp string from the API response
         timestamp_str = media_item['timestamp']
+        
+        # Manually insert a colon into the timezone offset if it's missing
+        # This makes the string compatible with older Python versions (like 3.9 on AWS)
         if timestamp_str[-5] in ('+', '-') and timestamp_str[-3] != ':':
              timestamp_str = timestamp_str[:-2] + ':' + timestamp_str[-2:]
+        # --- FIX ENDS HERE ---
+        
+        # Now, fromisoformat() will work correctly on all Python versions
         timestamp = datetime.fromisoformat(timestamp_str).strftime('%d-%b-%Y %H:%M')
         media_id = media_item['id']
         return f"{caption[:50]}... ({timestamp}) - ID: {media_id}"
@@ -554,9 +581,7 @@ def render_landing_page():
             if st.button("Manage My Posts", use_container_width=True, type="primary"):
                 st.session_state.app_mode = 'manage'; st.rerun()
 
-    st.markdown("---")
-    with st.expander("⚙️ Application Configuration & Settings"):
-        render_settings_form(form_key="landing_settings_form")
+    # --- REMOVED: Settings expander is no longer on the landing page ---
 
 def render_analysis_page():
     """Renders the page for real-time AI-powered account analysis."""
@@ -572,7 +597,7 @@ def render_analysis_page():
     is_ai_configured = bool(st.session_state.config.google_api_key)
     
     if not (is_ig_configured and is_ai_configured):
-        st.warning("⚠️ AI Analysis requires configuration. Please ensure all **Instagram API** and **Google AI API** keys are set on the home page.")
+        st.warning("⚠️ AI Analysis requires configuration. Please go to the **Manage My Posts** section, then to the **⚙️ Settings** tab to configure the application.")
         st.text_input("Enter Instagram Username to Analyze", placeholder="e.g., nasa", disabled=True)
         st.button("Analyze Account", use_container_width=True, type="primary", disabled=True)
         return
