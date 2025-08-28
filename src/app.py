@@ -415,8 +415,12 @@ def render_performance_tab(media_info):
     def format_video_option(media_item: dict) -> str:
         """Formats a media item for display in a selectbox."""
         caption = media_item.get('caption', 'No caption')
-        timestamp = datetime.fromisoformat(media_item['timestamp']).strftime('%d-%b-%Y %H:%M')
-        return f"{caption[:50]}... ({timestamp}) - ID: {media_item['id']}"
+        timestamp_str = media_item['timestamp']
+        if timestamp_str[-5] in ('+', '-') and timestamp_str[-3] != ':':
+             timestamp_str = timestamp_str[:-2] + ':' + timestamp_str[-2:]
+        timestamp = datetime.fromisoformat(timestamp_str).strftime('%d-%b-%Y %H:%M')
+        media_id = media_item['id']
+        return f"{caption[:50]}... ({timestamp}) - ID: {media_id}"
 
     selected_media = st.selectbox("Choose a video to analyze", options=video_options, format_func=format_video_option)
     if selected_media:
