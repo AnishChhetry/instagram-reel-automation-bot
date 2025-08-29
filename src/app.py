@@ -154,6 +154,11 @@ def render_main_dashboard():
     This function sets up the header, key performance indicator (KPI) metrics,
     and the tabbed interface for different management tasks, including settings.
     """
+    # --- FIX: Moved success message logic here from the landing page ---
+    if st.session_state.get("config_saved"):
+        st.success("✅ Configuration saved successfully!")
+        del st.session_state.config_saved
+
     st.markdown("""
     <div class="main-header">
         <h1>🎬 ReelPilot AI</h1>
@@ -161,7 +166,6 @@ def render_main_dashboard():
     </div>
     """, unsafe_allow_html=True)
     
-    # --- MODIFIED: Added '⚙️ Settings' tab ---
     tabs = ["📤 Upload & Schedule", "🔁 Recurring Post", "🚀 Performance", "📅 Scheduled Posts", "👤 Account Details", "⚙️ Settings"]
     tab_upload, tab_recurring, tab_performance, tab_scheduled, tab_details, tab_settings = st.tabs(tabs)
 
@@ -196,7 +200,6 @@ def render_main_dashboard():
     col4.metric("👀 Reach (28 days)", reach)
     st.markdown("---")
 
-    # --- MODIFIED: New tab rendering logic ---
     def show_config_warning():
         """Displays a standard warning message if the app is not configured."""
         st.warning("⚠️ Application not configured. Please go to the '⚙️ Settings' tab to enter your API credentials.")
@@ -434,17 +437,11 @@ def render_performance_tab(media_info):
         """Formats a media item for display in a selectbox."""
         caption = media_item.get('caption', 'No caption')
         
-        # --- FIX STARTS HERE ---
-        # Get the timestamp string from the API response
         timestamp_str = media_item['timestamp']
         
-        # Manually insert a colon into the timezone offset if it's missing
-        # This makes the string compatible with older Python versions (like 3.9 on AWS)
         if timestamp_str[-5] in ('+', '-') and timestamp_str[-3] != ':':
              timestamp_str = timestamp_str[:-2] + ':' + timestamp_str[-2:]
-        # --- FIX ENDS HERE ---
         
-        # Now, fromisoformat() will work correctly on all Python versions
         timestamp = datetime.fromisoformat(timestamp_str).strftime('%d-%b-%Y %H:%M')
         media_id = media_item['id']
         return f"{caption[:50]}... ({timestamp}) - ID: {media_id}"
@@ -556,10 +553,7 @@ def render_login_page():
 
 def render_landing_page():
     """Renders the main landing page, acting as a navigation hub."""
-    if st.session_state.get("config_saved"):
-        st.success("✅ Configuration saved successfully!")
-        del st.session_state.config_saved
-
+    # --- FIX: Removed success message from here ---
     st.markdown("""
     <div class="main-header">
         <h1>Welcome to ReelPilot AI</h1>
@@ -580,8 +574,6 @@ def render_landing_page():
             st.write("Access the dashboard to upload, schedule, and manage your own Instagram Reels.")
             if st.button("Manage My Posts", use_container_width=True, type="primary"):
                 st.session_state.app_mode = 'manage'; st.rerun()
-
-    # --- REMOVED: Settings expander is no longer on the landing page ---
 
 def render_analysis_page():
     """Renders the page for real-time AI-powered account analysis."""

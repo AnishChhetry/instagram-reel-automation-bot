@@ -73,6 +73,9 @@ def execute_post_task(post_data: Dict[str, Any]):
         
         if not video_path:
             raise ValueError("Task data is missing 'video_path'.")
+        # --- ADDED CHECK ---
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video file not found at path: {video_path}. It may have been deleted.")
 
         result = api.post_reel(video_path=video_path, caption=post_data["caption"])
 
@@ -149,7 +152,8 @@ class ReelScheduler:
         """Configures and returns a BackgroundScheduler instance."""
         jobstores = {'default': SQLAlchemyJobStore(url=f'sqlite:///{self.db_path}')}
         executors = {'default': ThreadPoolExecutor(20)}
-        job_defaults = {'coalesce': False, 'max_instances': 3, 'misfire_grace_time': 300}
+        # --- FIX #2: Changed max_instances from 3 to 1 to prevent race conditions ---
+        job_defaults = {'coalesce': False, 'max_instances': 1, 'misfire_grace_time': 300}
         
         scheduler = BackgroundScheduler(jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone='Asia/Kolkata')
         
@@ -219,11 +223,17 @@ class ReelScheduler:
         config = self.get_recurring_schedule()
         if config:
             self.logger.info("Found recurring schedule config, applying on startup.")
-            self.schedule_recurring_post(
-                caption=config["caption"],
-                times=[time.fromisoformat(t) for t in config["times"]],
-                video_path=config.get("video_path")
-            )
+            # Ensure video file exists before attempting to reschedule
+            if config.get("video_path") and os.path.exists(config["video_path"]):
+                self.schedule_recurring_post(
+                    caption=config["caption"],
+                    times=[time.fromisoformat(t) for t in config["times"]],
+                    video_path=config.get("video_path")
+                )
+            else:
+                self.logger.warning(f"Recurring post video not found at {config.get('video_path')}. Cancelling schedule.")
+                self.cancel_recurring_posts()
+
 
     def get_recurring_schedule(self) -> Optional[Dict[str, Any]]:
         """Retrieves the current recurring schedule configuration."""
@@ -236,19 +246,28 @@ class ReelScheduler:
             return None
 
     def cancel_recurring_posts(self):
-        """Cancels all recurring jobs and deletes the associated video and config."""
+        """
+        Cancels all recurring jobs and deletes the associated video and config.
+        This should only be called by a direct user action.
+        """
         self.logger.info("Attempting to cancel all recurring posts.")
         recurring_config = self.get_recurring_schedule()
         if recurring_config:
             _delete_video_file(recurring_config.get("video_path"), self.logger)
         
-        for job in self.scheduler.get_jobs():
-            if job.id.startswith("recurring_"):
-                self.scheduler.remove_job(job.id)
-                self.logger.info(f"Removed recurring job: {job.id}")
+        self._clear_recurring_jobs()
+        
         if os.path.exists(self.recurring_config_file):
             os.remove(self.recurring_config_file)
             self.logger.info("Removed recurring post config file.")
+
+    # --- FIX #1: New internal method to clear jobs without deleting files ---
+    def _clear_recurring_jobs(self):
+        """Removes all recurring jobs from the scheduler without touching files."""
+        for job in self.scheduler.get_jobs():
+            if job.id.startswith("recurring_"):
+                self.scheduler.remove_job(job.id)
+                self.logger.info(f"Removed recurring job for rescheduling: {job.id}")
 
     def schedule_recurring_post(self, caption: str, times: List[time], video_path: str):
         """
@@ -261,7 +280,9 @@ class ReelScheduler:
             times (List[time]): A list of `time` objects for daily posting.
             video_path (str): The path to the video file to be posted.
         """
-        self.cancel_recurring_posts()
+        # --- FIX #1: Call the safe job clearing method instead of the destructive one ---
+        self._clear_recurring_jobs()
+
         if not video_path:
             raise ValueError("video_path must be provided for recurring posts.")
         

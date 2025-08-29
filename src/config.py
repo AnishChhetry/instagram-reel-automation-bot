@@ -40,8 +40,6 @@ class Config:
 
     def __init__(self):
         """Initializes the Config class by resolving paths and loading settings."""
-        # Determine the project root directory based on this file's location.
-        # This makes path resolution independent of where the script is run from.
         src_dir = Path(__file__).resolve().parent
         self.project_root = src_dir.parent
         self.env_file = self.project_root / "config" / ".env"
@@ -51,9 +49,6 @@ class Config:
     def _make_path_absolute(self, path_str: str) -> str:
         """
         Converts a relative path string from the config to an absolute path.
-
-        If the path is already absolute, it is returned unchanged. Otherwise,
-        it's joined with the project root directory.
 
         Args:
             path_str (str): The path string to convert.
@@ -68,14 +63,10 @@ class Config:
     def _load_config(self):
         """
         Loads configuration from the .env file into instance attributes.
-        
-        It uses default values for non-critical settings if they are not
-        specified in the .env file.
         """
         if self.env_file.exists():
-            load_dotenv(self.env_file)
+            load_dotenv(self.env_file, override=True)
 
-        # Load Instagram API and other service credentials from environment.
         self.access_token = os.getenv("ACCESS_TOKEN")
         self.app_id = os.getenv("APP_ID") 
         self.app_secret = os.getenv("APP_SECRET")
@@ -84,12 +75,10 @@ class Config:
         self.app_pin = os.getenv("APP_PIN") 
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
 
-        # Load application settings, ensuring all paths are absolute.
         self.video_storage_path = self._make_path_absolute(os.getenv("VIDEO_STORAGE_PATH", "data/videos"))
         self.temp_storage_path = self._make_path_absolute(os.getenv("TEMP_STORAGE_PATH", "data/temp"))
         self.log_file = self._make_path_absolute(os.getenv("LOG_FILE", "data/logs/app.log"))
 
-        # Load other application parameters with defaults.
         self.max_file_size_mb = int(os.getenv("MAX_FILE_SIZE_MB", "200"))
         self.allowed_video_formats = os.getenv("ALLOWED_VIDEO_FORMATS", "mp4,mov,avi").split(",")
 
@@ -125,8 +114,8 @@ class Config:
         """
         Saves the provided configuration dictionary to the .env file.
 
-        This method overwrites the existing .env file. It wraps values in
-        quotes to handle special characters and skips empty values.
+        This method overwrites the existing .env file. It writes all keys,
+        ensuring that empty values are explicitly saved to clear previous settings.
 
         Args:
             config_data (dict): A dictionary of configuration key-value pairs.
@@ -138,8 +127,10 @@ class Config:
             self.env_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.env_file, "w") as f:
                 for key, value in config_data.items():
-                    if value:
-                        f.write(f'{key}="{value}"\n')
+                    # --- FIX: Always write the key, even if the value is empty. ---
+                    # This ensures that clearing a field in the UI and saving
+                    # will correctly update the .env file and the environment.
+                    f.write(f'{key}="{value}"\n')
             return True
         except Exception as e:
             print(f"Error saving configuration: {str(e)}")

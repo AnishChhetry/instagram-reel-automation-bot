@@ -88,7 +88,6 @@ class InstagramAPI:
         try:
             model = genai.GenerativeModel('gemini-1.5-flash')
             
-            # Sanitize data for the prompt: remove long URLs and truncate captions.
             if 'media' in profile_data and 'data' in profile_data['media']:
                 for post in profile_data['media']['data']:
                     post.pop('media_url', None)
@@ -120,7 +119,6 @@ class InstagramAPI:
         except Exception as e:
             self.logger.error(f"Error generating AI summary: {e}")
             error_message = str(e)
-            # Provide user-friendly error messages for common API key issues.
             if "API_KEY_INVALID" in error_message or "PermissionDenied" in error_message:
                 return "**AI Analysis Failed:** Your Google AI API Key is invalid or lacks permissions."
             elif "Billing" in error_message:
@@ -169,7 +167,6 @@ class InstagramAPI:
         user_fields = "business_discovery.username({username}){{followers_count,media_count,media.limit(10){{caption,like_count,comments_count,timestamp,media_url}}}}"
         
         try:
-            # Generate appsecret_proof for enhanced API security.
             app_secret_proof = hmac.new(
                 self.app_secret.encode('utf-8'),
                 msg=self.access_token.encode('utf-8'),
@@ -196,7 +193,6 @@ class InstagramAPI:
             followers = discovery_data.get('followers_count', 0)
             media_list = discovery_data.get('media', {}).get('data', [])
 
-            # Generate AI summary and calculate engagement metrics.
             ai_summary = self._generate_ai_summary(username, discovery_data)
             avg_likes, avg_comments, engagement_rate = 0, 0, 0
             if media_list and followers > 0:
@@ -233,6 +229,8 @@ class InstagramAPI:
                                             the HTTP server instance, and the
                                             ngrok tunnel instance.
         """
+        # --- FIX: Added robust cleanup for partial failures ---
+        httpd = None
         try:
             port = 8000
             video_directory = os.path.dirname(video_path)
@@ -255,6 +253,11 @@ class InstagramAPI:
             return public_url, httpd, public_tunnel
         except Exception as e:
             self.logger.error(f"Failed to start server or ngrok: {e}")
+            # If the server started but ngrok failed, shut down the server
+            if httpd:
+                httpd.shutdown()
+                httpd.server_close()
+                self.logger.info("Partial cleanup: HTTP server shut down after ngrok failure.")
             return None, None, None
 
     def _create_media_container_from_url(self, caption: str, video_url: str) -> Optional[str]:
@@ -303,6 +306,7 @@ class InstagramAPI:
         """
         self.logger.info(f"Starting reel posting workflow for {video_path}")
         public_url, http_server, ngrok_tunnel = self._start_server_and_ngrok(video_path)
+        
         if not public_url:
             return {"success": False, "error": "Failed to create public URL with ngrok."}
             
@@ -312,7 +316,7 @@ class InstagramAPI:
                 return {"success": False, "error": "Container creation from URL failed."}
 
             self.logger.info("Waiting for video to be processed by Instagram...")
-            max_retries = 12 # 12 retries * 15s = 3 minutes timeout
+            max_retries = 12
             for i in range(max_retries):
                 status_response = self.check_container_status(container_id)
                 status_code = status_response.get("status_code")
@@ -331,7 +335,6 @@ class InstagramAPI:
 
             return {"success": False, "error": "Video processing timed out."}
         finally:
-            # Ensure server and tunnel are always shut down.
             if http_server:
                 http_server.shutdown()
                 http_server.server_close()
