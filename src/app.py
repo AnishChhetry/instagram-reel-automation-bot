@@ -5,13 +5,6 @@ Main Streamlit application for ReelPilot AI.
 This script initializes and runs the user interface for managing, scheduling,
 and analyzing an Instagram presence. It handles UI rendering, state management,
 and user interactions, serving as the central hub for the application's features.
-
-Key functionalities include:
-- A multi-page interface (Landing, Analysis, Management).
-- Secure PIN-based authentication for the management dashboard.
-- Real-time Instagram account analysis using Google's Gemini AI.
-- Single and recurring Reel scheduling.
-- Performance analytics and account details display.
 """
 
 import streamlit as st
@@ -23,6 +16,7 @@ import plotly.express as px
 import numpy as np
 import pytz
 import os
+import requests
 
 from instagram_api import InstagramAPI
 from scheduler import ReelScheduler
@@ -54,8 +48,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state variables to manage application state across reruns.
-# This prevents re-initialization of components on every user interaction.
 if 'config' not in st.session_state:
     st.session_state.config = Config()
 if 'api' not in st.session_state:
@@ -70,33 +62,24 @@ if 'app_mode' not in st.session_state:
 # --- Core Component Functions ---
 
 def initialize_components():
-    """
-    Initializes core components like the ReelScheduler if the app is configured.
-
-    This function checks if the necessary API credentials are present in the
-    configuration. If so, it instantiates the scheduler, making it available.
-
-    Returns:
-        bool: True if the application is configured, False otherwise.
-    """
+    """Initializes core components like the ReelScheduler and starts the ngrok tunnel."""
     config = st.session_state.config
     is_configured = config.is_configured()
 
-    if is_configured and st.session_state.scheduler is None:
-        st.session_state.scheduler = ReelScheduler()
+    if is_configured:
+        if st.session_state.scheduler is None:
+            st.session_state.scheduler = ReelScheduler()
+        # Start the persistent tunnel when components initialize
+        if not st.session_state.api.public_url_base:
+            with st.spinner("Initializing secure connection..."):
+                if not st.session_state.api.start_server_and_ngrok():
+                    st.error("Failed to initialize secure connection. Please check your ngrok token and restart the app.")
     return is_configured
 
 def render_sidebar():
-    """
-    Renders the sidebar for the main management dashboard.
-
-    The sidebar contains automation controls, quick actions like refreshing data,
-    and a system status panel displaying API connectivity and usage metrics.
-    """
     st.sidebar.markdown("### ⚙️ Automation Controls")
     is_configured = st.session_state.config.is_configured()
 
-    # Automation toggle (enables/disables the scheduler)
     if is_configured and st.session_state.scheduler:
         scheduler_status = st.session_state.scheduler.get_scheduler_status()
         is_enabled = scheduler_status.get('running', False)
@@ -110,7 +93,6 @@ def render_sidebar():
     else:
         st.sidebar.toggle("Enable Automation", value=False, disabled=True)
 
-    # Quick actions and system status
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🚀 Quick Actions")
     if st.sidebar.button("🏠 Back to Home", use_container_width=True):
@@ -135,9 +117,6 @@ def render_sidebar():
         st.sidebar.metric("API Status", "❌ Disconnected")
 
 def test_api_connection():
-    """
-    Tests the connection to the Instagram Graph API and displays the result.
-    """
     with st.spinner("Testing API connection..."):
         result = st.session_state.api.test_connection()
         if result["success"]:
@@ -148,13 +127,6 @@ def test_api_connection():
 # --- Main UI Rendering Functions ---
 
 def render_main_dashboard():
-    """
-    Renders the main dashboard UI for post management and analytics.
-
-    This function sets up the header, key performance indicator (KPI) metrics,
-    and the tabbed interface for different management tasks, including settings.
-    """
-    # --- FIX: Moved success message logic here from the landing page ---
     if st.session_state.get("config_saved"):
         st.success("✅ Configuration saved successfully!")
         del st.session_state.config_saved
@@ -171,13 +143,11 @@ def render_main_dashboard():
 
     is_configured = initialize_components()
 
-    # Fetch data for dashboard metrics
     with st.spinner("Loading dashboard data..."):
         account_info = st.session_state.api.test_connection() if is_configured else {}
         media_info = st.session_state.api.get_user_media(limit=25) if is_configured else {}
         insights_info = st.session_state.api.get_account_insights(period='days_28') if is_configured else {}
 
-    # Calculate and display KPIs
     total_posts, followers, reach, engagement_rate = 'NA', 'NA', 'NA', 'NA'
     if account_info.get('success'):
         data = account_info['data']
@@ -201,60 +171,45 @@ def render_main_dashboard():
     st.markdown("---")
 
     def show_config_warning():
-        """Displays a standard warning message if the app is not configured."""
         st.warning("⚠️ Application not configured. Please go to the '⚙️ Settings' tab to enter your API credentials.")
 
     with tab_upload:
         if is_configured: render_upload_tab()
         else: show_config_warning()
-        
     with tab_recurring:
         if is_configured: render_recurring_post_tab()
         else: show_config_warning()
-
     with tab_performance:
         if is_configured: render_performance_tab(media_info)
         else: show_config_warning()
-
     with tab_scheduled:
         if is_configured: render_scheduled_posts_tab()
         else: show_config_warning()
-
     with tab_details:
         if is_configured: render_account_details_tab()
         else: show_config_warning()
-        
     with tab_settings:
         st.header("⚙️ Application Configuration")
         st.info("Enter your API credentials and application settings here. Changes are applied immediately after saving.")
         render_settings_form(form_key="dashboard_settings_form")
 
 def render_settings_form(form_key="settings_form"):
-    """
-    Renders the configuration form for setting up API keys and app settings.
-
-    Args:
-        form_key (str): A unique key for the Streamlit form to prevent conflicts.
-    """
     with st.form(form_key):
         config = st.session_state.config
-
         st.subheader("🔑 Application Access")
         app_pin = st.text_input("Application Access PIN (leave blank to disable)", value=config.app_pin or "", type="password", help="Set a PIN to lock access to the post management dashboard.")
-
         st.subheader("🤖 Google AI for Analysis")
         google_api_key = st.text_input("Google AI API Key", value=config.google_api_key or "", type="password", help="Required for the AI Account Analysis feature.")
-
         st.subheader("🔧 Instagram API Credentials")
         access_token = st.text_input("Access Token", value=config.access_token or "", type="password")
         app_id = st.text_input("App ID", value=config.app_id or "")
         app_secret = st.text_input("App Secret", value=config.app_secret or "", type="password")
         instagram_id = st.text_input("Instagram Account ID", value=config.instagram_account_id or "")
-
         st.subheader("🔗 Ngrok Configuration")
         ngrok_token = st.text_input("Ngrok Authtoken", value=config.ngrok_authtoken or "", type="password")
-
         if st.form_submit_button("💾 Save Configuration", type="primary", use_container_width=True):
+            # When saving, first stop the current ngrok tunnel if it exists
+            st.session_state.api.stop_server_and_ngrok()
             config_data = {
                 "ACCESS_TOKEN": access_token, "APP_ID": app_id, "APP_SECRET": app_secret,
                 "INSTAGRAM_ACCOUNT_ID": instagram_id, "NGROK_AUTHTOKEN": ngrok_token,
@@ -262,20 +217,15 @@ def render_settings_form(form_key="settings_form"):
             }
             if config.save_config(config_data):
                 st.session_state.config_saved = True
-                # Forcefully re-initialize core components to apply new settings immediately.
                 st.session_state.config = Config()
                 st.session_state.api = InstagramAPI(st.session_state.config)
-                # Clear dependent components to ensure they are recreated with the new config.
                 if 'scheduler' in st.session_state: del st.session_state.scheduler
                 if 'authenticated' in st.session_state: del st.session_state.authenticated
                 st.rerun()
             else:
                 st.error("❌ Failed to save configuration file.")
 
-# --- Tab-Specific Rendering Functions ---
-
 def render_account_details_tab():
-    """Renders the 'Account Details' tab, showing raw account data."""
     st.header("👤 Instagram Account Details")
     with st.spinner("Fetching account details..."):
         account_info = st.session_state.api.test_connection()
@@ -286,7 +236,6 @@ def render_account_details_tab():
         st.error(f"Could not fetch account details: {account_info.get('error')}")
 
 def render_upload_tab():
-    """Renders the 'Upload & Schedule' tab for single-use posts."""
     st.header("📤 Upload & Schedule a Reel")
     uploaded_file = st.file_uploader("Choose a video file", type=st.session_state.config.allowed_video_formats)
     if uploaded_file:
@@ -297,7 +246,6 @@ def render_upload_tab():
                 now_in_ist = datetime.now(pytz.timezone('Asia/Kolkata'))
                 st.date_input("Date", min_value=now_in_ist.date(), key="schedule_date")
                 st.time_input("Time (IST)", step=timedelta(minutes=1), key="schedule_time")
-
             submitted = st.form_submit_button("🚀 Process Reel", type="primary", use_container_width=True)
             if submitted:
                 schedule_datetime = None
@@ -311,30 +259,27 @@ def render_upload_tab():
                 process_reel_upload(uploaded_file, caption, st.session_state.schedule_type, schedule_datetime)
 
 def process_reel_upload(uploaded_file, caption, schedule_type, schedule_datetime=None):
-    """
-    Handles the processing and posting/scheduling of an uploaded reel.
-
-    Args:
-        uploaded_file: The video file uploaded via Streamlit.
-        caption (str): The caption for the reel.
-        schedule_type (str): Either "📤 Post Now" or "⏰ Schedule for Later".
-        schedule_datetime (datetime, optional): The scheduled time if applicable.
-    """
     video_data = None
     try:
         vp = VideoProcessor(st.session_state.config)
+        # Save all videos to the permanent directory so the persistent server can find them
+        with st.spinner("Processing video..."):
+            video_data = vp.process_uploaded_video(uploaded_file, is_temporary=False)
+        
         if schedule_type == "📤 Post Now":
-            with st.spinner("Processing video..."):
-                video_data = vp.process_uploaded_video(uploaded_file, is_temporary=True)
             with st.spinner("Posting reel to Instagram..."):
                 result = st.session_state.api.post_reel(video_data['path'], caption)
             if result.get('success'):
                 st.success(f"✅ Reel posted! Media ID: {result.get('media_id')}")
+                # Clean up the video file after a successful immediate post
+                try:
+                    os.remove(video_data['path'])
+                    st.toast("Video file deleted.", icon="🗑️")
+                except OSError as e:
+                    st.warning(f"Could not delete temporary file: {e}")
             else:
                 st.error(f"❌ Failed to post reel: {result.get('error')}")
         else: # Schedule for later
-            with st.spinner("Processing and saving video for schedule..."):
-                video_data = vp.process_uploaded_video(uploaded_file, is_temporary=False)
             post_data = {
                 "id": str(uuid.uuid4()), "video_path": video_data['path'],
                 "caption": caption, "scheduled_time": schedule_datetime.isoformat()
@@ -343,24 +288,14 @@ def process_reel_upload(uploaded_file, caption, schedule_type, schedule_datetime
             st.success(f"✅ Reel scheduled for {schedule_datetime.strftime('%Y-%m-%d at %H:%M %Z')}!")
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
-    finally:
-        # Clean up temporary video file after posting immediately.
-        if video_data and schedule_type == "📤 Post Now":
-            try:
-                os.remove(video_data['path'])
-                st.toast("Temporary file deleted.", icon="🗑️")
-            except OSError as e:
-                st.warning(f"Could not delete temporary file: {e}")
 
 def render_recurring_post_tab():
-    """Renders the 'Recurring Post' tab for setting up daily schedules."""
     st.header("🔁 Recurring Daily Post")
     schedule = st.session_state.scheduler.get_recurring_schedule()
-    
     if schedule:
         st.subheader("Current Recurring Schedule")
         with st.container(border=True):
-            st.write(f"**Video File:** `{schedule['video_path']}`")
+            st.write(f"**Video File:** `{os.path.basename(schedule['video_path'])}`")
             st.write("**Caption:**"); st.text(schedule['caption'])
             times_str = [time.fromisoformat(t).strftime('%I:%M %p') for t in schedule['times']]
             st.write(f"**Scheduled Times (IST):** {', '.join(times_str)}")
@@ -371,35 +306,26 @@ def render_recurring_post_tab():
     else:
         st.subheader("Set Up a New Recurring Schedule")
         st.info("Set one video to be posted automatically at your chosen times every day.")
-        
-        # Manage state for dynamic time inputs
         if 'num_recurring_times' not in st.session_state: st.session_state.num_recurring_times = 1
         if 'prev_num_recurring_times' not in st.session_state: st.session_state.prev_num_recurring_times = 1
-
         st.number_input("How many times per day?", min_value=1, max_value=10, key='num_recurring_times', step=1)
-        
-        # Rerun to update the number of time input fields if changed
         if st.session_state.num_recurring_times != st.session_state.prev_num_recurring_times:
             for i in range(st.session_state.prev_num_recurring_times):
                 if f"recurring_time_{i}" in st.session_state: del st.session_state[f"recurring_time_{i}"]
             st.session_state.prev_num_recurring_times = st.session_state.num_recurring_times
             st.rerun()
-
         with st.form("recurring_form"):
             video_file = st.file_uploader("Choose a video for recurring posts", type=st.session_state.config.allowed_video_formats)
             caption = st.text_area("Recurring Caption", height=100)
             st.write("**Select the times of the day (IST):**")
-            
             num_times = st.session_state.num_recurring_times
             selected_times = []
             interval = 24 // num_times
-            start_hour = 9 # Sensible default starting time
-            
+            start_hour = 9
             for i in range(num_times):
                 default_hour = (start_hour + i * interval) % 24
                 time_val = st.time_input(f"Time {i + 1}", value=time(default_hour, 0), key=f"recurring_time_{i}", step=timedelta(minutes=1))
                 selected_times.append(time_val)
-
             submitted = st.form_submit_button("🚀 Start Recurring Schedule", use_container_width=True)
             if submitted:
                 if not video_file: st.error("You must upload a video file.")
@@ -416,36 +342,22 @@ def render_recurring_post_tab():
                             st.error(f"An error occurred: {e}")
 
 def render_performance_tab(media_info):
-    """
-    Renders the 'Performance' tab with insights on recent videos.
-
-    Args:
-        media_info (dict): A dictionary containing data on recent media posts.
-    """
     st.header("🚀 Video Performance Insights")
     st.write("Select one of your recent videos to view its detailed performance metrics.")
     if not media_info.get("success"):
         st.error("Could not fetch your recent media to analyze. Please check your API connection.")
         return
-    
     media_list = media_info.get("data", {}).get("data", [])
     video_options = [m for m in media_list if m.get("media_type") in ["VIDEO", "REELS"]]
     if not video_options:
         st.warning("You don't have any recent videos/reels to analyze."); return
-
     def format_video_option(media_item: dict) -> str:
-        """Formats a media item for display in a selectbox."""
         caption = media_item.get('caption', 'No caption')
-        
         timestamp_str = media_item['timestamp']
-        
         if timestamp_str[-5] in ('+', '-') and timestamp_str[-3] != ':':
              timestamp_str = timestamp_str[:-2] + ':' + timestamp_str[-2:]
-        
         timestamp = datetime.fromisoformat(timestamp_str).strftime('%d-%b-%Y %H:%M')
-        media_id = media_item['id']
-        return f"{caption[:50]}... ({timestamp}) - ID: {media_id}"
-
+        return f"{caption[:50]}... ({timestamp}) - ID: {media_item['id']}"
     selected_media = st.selectbox("Choose a video to analyze", options=video_options, format_func=format_video_option)
     if selected_media:
         media_id = selected_media['id']
@@ -463,7 +375,6 @@ def render_performance_tab(media_info):
                 st.metric("👀 Reach", f"{data.get('reach', 0):,}")
             else:
                 st.error(f"Could not load insights. Reason: {insights.get('error')}")
-    
     st.markdown("---")
     st.subheader("📈 Overall Engagement Over Time")
     df = pd.DataFrame(media_list)
@@ -476,7 +387,6 @@ def render_performance_tab(media_info):
         st.info("No media data to plot.")
 
 def render_scheduled_posts_tab():
-    """Renders the 'Scheduled Posts' tab, handling both display and edit modes."""
     st.header("📅 Scheduled Posts Management")
     if 'editing_post_id' in st.session_state:
         render_edit_form()
@@ -484,12 +394,10 @@ def render_scheduled_posts_tab():
         display_scheduled_posts()
 
 def display_scheduled_posts():
-    """Displays the list of currently scheduled single-use posts."""
     if st.button("🔄 Refresh Posts"): st.rerun()
     posts = st.session_state.scheduler.get_scheduled_posts() if st.session_state.scheduler else []
     if not posts:
         st.info("📭 No posts are currently scheduled."); return
-    
     for post in sorted(posts, key=lambda p: p['scheduled_time']):
         with st.container(border=True):
             c1, c2 = st.columns([4, 1])
@@ -507,20 +415,17 @@ def display_scheduled_posts():
                     else: st.error("Failed to delete post.")
 
 def render_edit_form():
-    """Renders the form for editing a specific scheduled post."""
     post_id = st.session_state.editing_post_id
     posts = st.session_state.scheduler.get_scheduled_posts()
     post_to_edit = next((p for p in posts if p['id'] == post_id), None)
     if not post_to_edit:
         st.error("Post not found."); del st.session_state.editing_post_id; return
-    
     st.subheader("✏️ Editing Scheduled Post")
     with st.form("edit_post_form"):
         new_caption = st.text_area("Caption", value=post_to_edit['caption'], height=150)
         current_dt = datetime.fromisoformat(post_to_edit['scheduled_time'])
         new_date = st.date_input("New Date", value=current_dt.date())
         new_time = st.time_input("New Time", value=current_dt.time(), step=timedelta(minutes=1))
-        
         c1, c2 = st.columns(2)
         with c1:
             if st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True):
@@ -537,10 +442,7 @@ def render_edit_form():
             if st.form_submit_button("❌ Cancel", use_container_width=True):
                 del st.session_state.editing_post_id; st.rerun()
 
-# --- Page-Level Rendering Functions (App Modes) ---
-
 def render_login_page():
-    """Renders the login page for PIN-based authentication."""
     st.title("🔐 Login")
     st.markdown("Please enter the PIN to access the post management dashboard.")
     pin_input = st.text_input("PIN", type="password", key="pin_input")
@@ -552,16 +454,15 @@ def render_login_page():
             st.error("The PIN you entered is incorrect.")
 
 def render_landing_page():
-    """Renders the main landing page, acting as a navigation hub."""
-    # --- FIX: Removed success message from here ---
     st.markdown("""
     <div class="main-header">
         <h1>Welcome to ReelPilot AI</h1>
         <p>What would you like to do today?</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
 
-    col1, col2 = st.columns(2)
     with col1:
         with st.container(border=True):
             st.subheader("🤖 AI Account Analysis")
@@ -574,9 +475,14 @@ def render_landing_page():
             st.write("Access the dashboard to upload, schedule, and manage your own Instagram Reels.")
             if st.button("Manage My Posts", use_container_width=True, type="primary"):
                 st.session_state.app_mode = 'manage'; st.rerun()
+    with col3:
+        with st.container(border=True):
+            st.subheader("📥 Download from Account")
+            st.write("Download all recent media from any public Instagram Business/Creator account.")
+            if st.button("Download from Account", use_container_width=True, type="primary"):
+                st.session_state.app_mode = 'download'; st.rerun()
 
 def render_analysis_page():
-    """Renders the page for real-time AI-powered account analysis."""
     st.title("🔍 Real-Time Account Analysis")
     st.info(
         "**Important:** This tool uses the official Instagram Business Discovery API. "
@@ -584,16 +490,13 @@ def render_analysis_page():
     )
     if st.button("⬅️ Back to Home"):
         st.session_state.app_mode = 'landing'; st.rerun()
-
     is_ig_configured = st.session_state.config.is_configured()
     is_ai_configured = bool(st.session_state.config.google_api_key)
-    
     if not (is_ig_configured and is_ai_configured):
         st.warning("⚠️ AI Analysis requires configuration. Please go to the **Manage My Posts** section, then to the **⚙️ Settings** tab to configure the application.")
         st.text_input("Enter Instagram Username to Analyze", placeholder="e.g., nasa", disabled=True)
         st.button("Analyze Account", use_container_width=True, type="primary", disabled=True)
         return
-
     username = st.text_input("Enter Instagram Username to Analyze", placeholder="e.g., nasa")
     if st.button("Analyze Account", use_container_width=True, type="primary"):
         if not username:
@@ -614,18 +517,93 @@ def render_analysis_page():
             else:
                 st.error(f"Analysis Failed: {analysis.get('error')}")
 
-# --- Main Application Logic ---
+@st.cache_data
+def get_media_content(url):
+    """Downloads and caches the content of a media URL."""
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        return response.content, response.headers.get('Content-Type', 'application/octet-stream')
+    except Exception as e:
+        st.error(f"Error downloading content: {e}")
+        return None, None
+
+def render_download_page():
+    st.title("📥 Post Downloader")
+    st.info(
+        "**Important:** This tool can only download media from **public Business or Creator accounts**."
+    )
+    if st.button("⬅️ Back to Home"):
+        st.session_state.app_mode = 'landing'; st.rerun()
+    is_configured = st.session_state.config.is_configured()
+    if not is_configured:
+        st.warning("⚠️ This feature requires configuration. Please go to the **Manage My Posts** section, then to the **⚙️ Settings** tab.")
+        st.text_input("Enter Instagram Username to Download From", placeholder="e.g., natgeotravel", disabled=True)
+        return
+    username = st.text_input("Enter Instagram Username to Download From", placeholder="e.g., natgeotravel")
+    if st.button("Fetch Media", use_container_width=True, type="primary"):
+        if not username:
+            st.error("Please enter a username.")
+        else:
+            with st.spinner(f"Fetching all recent media for @{username}... This may take a moment."):
+                result = st.session_state.api.get_all_user_media(username)
+            if result.get("success"):
+                st.session_state.media_to_download = result["data"]
+                st.success(f"Found {len(result['data'])} media items for @{username}.")
+            else:
+                st.error(f"Failed to fetch media: {result.get('error')}")
+                if 'media_to_download' in st.session_state:
+                    del st.session_state.media_to_download
+    
+    if "media_to_download" in st.session_state and st.session_state.media_to_download:
+        st.markdown("---")
+        st.subheader("Available Media")
+        for item in st.session_state.media_to_download:
+            with st.container(border=True):
+                media_type = item.get('media_type')
+                caption = item.get('caption', 'No caption')
+                
+                # --- MODIFIED: Logic to handle single media and carousels ---
+                media_items_to_display = []
+                if media_type == 'CAROUSEL_ALBUM':
+                    st.write(f"**Carousel Post:** {caption[:100]}...")
+                    media_items_to_display = item.get('children', {}).get('data', [])
+                else:
+                    media_items_to_display = [item]
+
+                # Use columns for better layout inside the container
+                cols = st.columns(len(media_items_to_display))
+                
+                for i, media in enumerate(media_items_to_display):
+                    with cols[i]:
+                        media_url = media.get('media_url')
+                        display_url = media.get('thumbnail_url', media_url) if media.get('media_type') == 'VIDEO' else media_url
+                        
+                        if display_url:
+                            st.image(display_url)
+                        
+                        if media_url:
+                            content, mime_type = get_media_content(media_url)
+                            if content:
+                                file_extension = Path(media_url.split('?')[0]).suffix or ('.mp4' if media.get('media_type') == 'VIDEO' else '.jpg')
+                                file_name = f"{username}_{media['id']}{file_extension}"
+                                st.download_button(
+                                    label=f"⬇️ Download",
+                                    data=content,
+                                    file_name=file_name,
+                                    mime=mime_type,
+                                    key=f"download_{media['id']}",
+                                    use_container_width=True
+                                )
 
 def main():
-    """
-    Main function to control the application flow based on the current app mode.
-    """
     if st.session_state.app_mode == 'landing':
         render_landing_page()
     elif st.session_state.app_mode == 'analyze':
         render_analysis_page()
+    elif st.session_state.app_mode == 'download':
+        render_download_page()
     elif st.session_state.app_mode == 'manage':
-        # Check for PIN protection if enabled
         if st.session_state.config.app_pin and not st.session_state.get("authenticated"):
             render_login_page()
         else:
